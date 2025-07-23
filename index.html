@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Badge Creator</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+            background-color: #f8f9fa;
+        }
+
+        /* View Containers */
+        #listView,
+        #editView {
+            height: 100%;
+        }
+
+        .controls-column-full {
+            padding: 2rem;
+            height: 100vh;
+            overflow-y: auto;
+        }
+
+        /* Edit View Layout */
+        #editView .main-container {
+            display: flex;
+            height: 100%;
+        }
+
+        .preview-column {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            overflow: auto;
+        }
+
+        .controls-column {
+            width: 380px;
+            flex-shrink: 0;
+            height: 100vh;
+            overflow-y: auto;
+            background-color: #fff;
+            border-left: 1px solid #dee2e6;
+            padding: 20px;
+        }
+
+        /* Badge Styles (Shared) */
+        .badge-wrapper {
+            position: relative;
+            display: inline-block;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            aspect-ratio: 500 / 300;
+            width: 100%;
+            max-width: 500px;
+            user-select: none;
+            background: white;
+        }
+
+        .badge-img {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            user-select: none;
+        }
+
+        .editable {
+            position: absolute;
+            background-color: rgba(255, 255, 255, 0.7);
+            cursor: move;
+            border: 2px dashed transparent;
+            z-index: 10;
+            font-family: 'MS Gothic', sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            overflow: hidden;
+            word-break: break-all;
+            box-sizing: border-box;
+        }
+
+        #position {
+            justify-content: flex-start;
+            text-align: left;
+            padding-left: 10px; /* Add some padding */
+        }
+
+        #name {
+            white-space: nowrap;
+        }
+
+        .editable.placeholder {
+            color: #aaa;
+            border-color: #ced4da;
+        }
+
+        .editable:hover {
+            border-color: #0d6efd;
+        }
+
+        .editable.selected {
+            border-color: #0d6efd !important;
+        }
+
+        /* Use important to override hover */
+        .editable.selected::after {
+            content: '';
+            position: absolute;
+            right: -8px;
+            bottom: -8px;
+            width: 16px;
+            height: 16px;
+            background: #0d6efd;
+            border-radius: 50%;
+            cursor: se-resize;
+            border: 2px solid #fff;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+        }
+
+        .editable[contenteditable="true"] {
+            background-color: rgba(255, 255, 0, 0.3);
+            cursor: text;
+        }
+
+        .barcode svg {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Print Styles */
+        @media print {
+            @page {
+                size: A4 landscape;
+                margin: 0;
+            }
+
+            html,
+            body {
+                height: auto;
+                width: auto;
+                overflow: visible;
+                background: #fff;
+            }
+
+            #listView,
+            #editView {
+                display: none !important;
+            }
+
+            #printContainer {
+                display: flex !important;
+                flex-wrap: wrap;
+                align-content: flex-start;
+                align-items: flex-start;
+                gap: 1mm;
+            }
+
+            .print-badge-outer-wrapper {
+                page-break-inside: avoid;
+            }
+
+            #printContainer .badge-wrapper {
+                box-shadow: none;
+                border: 1px solid #ccc !important;
+            }
+
+            #printContainer .editable {
+                background-color: transparent !important;
+                border-color: transparent !important;
+                -webkit-print-color-adjust: exact;
+                color-adjust: exact;
+            }
+
+            #printContainer .editable::after {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- View: List -->
+    <div id="listView">
+        <div class="controls-column-full">
+            <h4 class="mb-3"><i class="bi bi-people-fill me-2"></i>Staff List</h4>
+            <div class="d-flex flex-wrap gap-2 mb-3">
+                <button class="btn btn-primary" id="addPersonBtn"><i class="bi bi-plus-circle me-1"></i> Add
+                    New</button>
+                <button class="btn btn-success" id="printAllBtn"><i class="bi bi-printer me-1"></i> Print All</button>
+                <button class="btn btn-info" id="exportCsvBtn"><i class="bi bi-download me-1"></i> Export CSV</button>
+                <label class="btn btn-info mb-0"><i class="bi bi-upload me-1"></i> Import CSV
+                    <input type="file" id="importCsvInput" class="d-none" accept=".csv">
+                </label>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Position</th>
+                            <th>Employee ID</th>
+                            <th>Password</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="personList">
+                        <!-- Person list will be rendered here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- View: Edit -->
+    <div id="editView" class="d-none">
+        <div class="main-container">
+            <div class="preview-column">
+                <div class="badge-wrapper" id="badgeWrapper">
+                    <img src="test.png" class="badge-img">
+                    <div class="editable" id="position"></div>
+                    <div class="editable" id="name"></div>
+                    <div class="editable barcode" id="barcode"></div>
+                </div>
+            </div>
+            <div class="controls-column">
+                <h4 class="mb-3" id="editViewTitle">Edit Badge Details</h4>
+                <hr>
+                <div class="mb-3">
+                    <label for="positionInput" class="form-label">Position</label>
+                    <input type="text" id="positionInput" class="form-control">
+                </div>
+                <div class="mb-3">
+                    <label for="nameInput" class="form-label">Name</label>
+                    <input type="text" id="nameInput" class="form-control">
+                </div>
+                <hr>
+                <h5 class="h6">Barcode Info</h5>
+                <div class="mb-3">
+                    <label for="employeeIdInput" class="form-label">Employee ID</label>
+                    <input type="text" id="employeeIdInput" class="form-control">
+                </div>
+                <div class="mb-3">
+                    <label for="passwordInput" class="form-label">Password</label>
+                    <input type="password" id="passwordInput" class="form-control">
+                </div>
+                <hr>
+                <h5 class="h6">Text Style</h5>
+                <div class="mb-3">
+                    <label for="fontFamily" class="form-label">Font</label>
+                    <select id="fontFamily" class="form-select">
+                        <option value="'MS Gothic', sans-serif">MS Gothic</option>
+                        <option value="'MS Mincho', serif">MS Mincho</option>
+                        <option value="sans-serif">Sans-Serif</option>
+                        <option value="serif">Serif</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="fontSize" class="form-label">Font Size (px)</label>
+                    <input type="number" id="fontSize" class="form-control" min="1" step="1">
+                </div>
+                <hr>
+                <div class="d-grid gap-2">
+                    <button class="btn btn-primary" id="saveAndExitBtn"><i class="bi bi-save me-1"></i> Save &
+                        Return</button>
+                    <button class="btn btn-secondary" id="cancelBtn"><i class="bi bi-x-circle me-1"></i> Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Print Container (Hidden) -->
+    <div id="printContainer" class="d-none"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- STATE MANAGEMENT ---
+            let people = [];
+            let currentEditingId = null;
+            let nextPersonId = 1;
+            let selectedElement = null;
+
+            // --- DOM ELEMENTS ---
+            const listView = document.getElementById('listView');
+            const editView = document.getElementById('editView');
+            const personListBody = document.getElementById('personList');
+            const badgeWrapper = document.getElementById('badgeWrapper');
+            const printContainer = document.getElementById('printContainer');
+
+            const editViewControls = {
+                title: document.getElementById('editViewTitle'),
+                position: document.getElementById('positionInput'),
+                name: document.getElementById('nameInput'),
+                employeeId: document.getElementById('employeeIdInput'),
+                password: document.getElementById('passwordInput'),
+                fontFamily: document.getElementById('fontFamily'),
+                fontSize: document.getElementById('fontSize'),
+            };
+
+            const preview = {
+                position: document.getElementById('position'),
+                name: document.getElementById('name'),
+                barcode: document.getElementById('barcode'),
+            };
+
+            // --- CORE LOGIC ---
+            const switchView = (viewName) => {
+                listView.classList.toggle('d-none', viewName !== 'list');
+                editView.classList.toggle('d-none', viewName !== 'edit');
+            };
+
+            const renderPersonList = () => {
+                personListBody.innerHTML = '';
+                people.forEach(p => {
+                    const tr = document.createElement('tr');
+                    tr.dataset.id = p.id;
+                    tr.innerHTML = `
+                <td><input type="text" class="form-control form-control-sm editable-input" data-field="name" value="${p.name || ''}" placeholder="Name"></td>
+                <td><input type="text" class="form-control form-control-sm editable-input" data-field="position" value="${p.position || ''}" placeholder="Position"></td>
+                <td><input type="text" class="form-control form-control-sm editable-input" data-field="employeeId" value="${p.employeeId || ''}" placeholder="Employee ID"></td>
+                <td><input type="password" class="form-control form-control-sm editable-input" data-field="password" value="${p.password || ''}" placeholder="Password"></td>
+                <td class="text-end">
+                    <button class="btn btn-sm btn-outline-primary me-2 edit-btn" title="Edit Details"><i class="bi bi-pencil-square"></i></button>
+                    <button class="btn btn-sm btn-outline-danger delete-btn" title="Delete"><i class="bi bi-trash"></i></button>
+                </td>
+            `;
+                    personListBody.appendChild(tr);
+                });
+            };
+
+            const loadPersonIntoEditView = (id) => {
+                currentEditingId = id;
+                const person = people.find(p => p.id === id);
+                const isNew = !person;
+
+                editViewControls.title.textContent = isNew ? 'Add New Person' : 'Edit Badge Details';
+                editViewControls.position.value = person?.position || '';
+                editViewControls.name.value = person?.name || '';
+                editViewControls.employeeId.value = person?.employeeId || '';
+                editViewControls.password.value = person?.password || '';
+
+                const defaultLayouts = {
+                    position: {
+                        top: '30.2219%',
+                        left: '5.06664%',
+                        width: '88%',
+                        height: '13%',
+                        fontSize: '20px',
+                        fontFamily: '"MS Gothic", sans-serif'
+                    },
+                    name: {
+                        top: '44.556%',
+                        left: '4.93332%',
+                        width: '442.656px',
+                        height: '97.9896px',
+                        fontSize: '60px',
+                        fontFamily: '"MS Gothic", sans-serif'
+                    },
+                    barcode: {
+                        top: '77.3327%',
+                        left: '4.79984%',
+                        width: '238.667px',
+                        height: '41.9479px',
+                        fontSize: '',
+                        fontFamily: ''
+                    }
+                };
+
+
+                const layouts = person?.layouts || defaultLayouts;
+
+                Object.keys(preview).forEach(key => {
+                    Object.assign(preview[key].style, layouts[key]);
+                });
+
+                const firstTextElementLayout = layouts.position;
+                editViewControls.fontFamily.value = firstTextElementLayout.fontFamily;
+                editViewControls.fontSize.value = parseFloat(firstTextElementLayout.fontSize);
+
+                updateEditViewPreview();
+                selectPreviewElement(preview.position);
+            };
+
+            const updateEditViewPreview = () => {
+                const posText = editViewControls.position.value;
+                const nameText = editViewControls.name.value;
+                preview.position.textContent = posText || 'Position';
+                preview.name.textContent = nameText || 'Name';
+                preview.position.classList.toggle('placeholder', !posText);
+                preview.name.classList.toggle('placeholder', !nameText);
+
+                adjustNameFontSize(); // Adjust font size after text update
+
+                const empId = editViewControls.employeeId.value;
+                const pw = editViewControls.password.value;
+                preview.barcode.innerHTML = '';
+                if (empId && pw) {
+                    preview.barcode.classList.remove('placeholder');
+                    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                    preview.barcode.appendChild(svg);
+                    JsBarcode(svg, `${empId}\t${pw}\n`, { format: "CODE128", displayValue: false, margin: 0 });
+                } else {
+                    preview.barcode.classList.add('placeholder');
+                    preview.barcode.textContent = 'Barcode';
+                }
+            };
+
+            const saveAndExit = () => {
+                const id = currentEditingId || nextPersonId;
+                let person = people.find(p => p.id === id);
+
+                if (!person) {
+                    person = { id };
+                    people.push(person);
+                    if (!currentEditingId) nextPersonId++;
+                }
+
+                person.name = editViewControls.name.value;
+                person.position = editViewControls.position.value;
+                person.employeeId = editViewControls.employeeId.value;
+                person.password = editViewControls.password.value;
+
+                person.layouts = {};
+                Object.keys(preview).forEach(key => {
+                    const style = preview[key].style;
+                    person.layouts[key] = {
+                        top: style.top,
+                        left: style.left,
+                        width: style.width,
+                        height: style.height,
+                        fontSize: style.fontSize,
+                        fontFamily: style.fontFamily,
+                    };
+                });
+
+                renderPersonList();
+                switchView('list');
+            };
+
+            const selectPreviewElement = (el) => {
+                if (selectedElement) {
+                    selectedElement.classList.remove('selected');
+                }
+                selectedElement = el;
+                if (selectedElement) {
+                    selectedElement.classList.add('selected');
+                    if (selectedElement.id !== 'barcode') {
+                        editViewControls.fontFamily.value = selectedElement.style.fontFamily;
+                        editViewControls.fontSize.value = parseFloat(selectedElement.style.fontSize);
+                    }
+                }
+            };
+
+            const adjustNameFontSize = () => {
+                const nameEl = preview.name;
+                const maxFontSize = 60; // Or from layout
+                nameEl.style.fontSize = maxFontSize + 'px';
+
+                // Temporarily make it visible to measure
+                const wasHidden = nameEl.style.display === 'none';
+                if (wasHidden) nameEl.style.display = '';
+
+                let currentSize = maxFontSize;
+                while (nameEl.scrollWidth > nameEl.clientWidth && currentSize > 10) {
+                    currentSize--;
+                    nameEl.style.fontSize = currentSize + 'px';
+                }
+                
+                if (wasHidden) nameEl.style.display = 'none';
+            };
+
+            // --- CSV Handling ---
+            const exportToCsv = () => {
+                if (people.length === 0) {
+                    alert('No data to export.');
+                    return;
+                }
+                const dataToExport = people.map(p => ({
+                    name: p.name || '',
+                    position: p.position || '',
+                    employeeId: p.employeeId || '',
+                    password: p.password || '',
+                    layouts: JSON.stringify(p.layouts)
+                }));
+                const csv = Papa.unparse(dataToExport);
+                const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = 'badge_data.csv';
+                link.click();
+            };
+
+            const importFromCsv = (file) => {
+                if (!file) return;
+                if (!confirm('This will overwrite the current list. Continue?')) {
+                    document.getElementById('importCsvInput').value = '';
+                    return;
+                }
+                reader = new FileReader();
+                reader.onload = (e) => {
+                    const text = e.target.result;
+                    Papa.parse(text, {
+                        header: true,
+                        skipEmptyLines: true,
+                        complete: (results) => {
+                            if (results.errors.length) {
+                                alert('Error parsing CSV file.');
+                                return;
+                            }
+                            try {
+                                let currentId = 1;
+                                const importedPeople = results.data.map(row => {
+                                    if (!row.name && !row.position) return null;
+                                    return {
+                                        ...row,
+                                        id: currentId++,
+                                        layouts: JSON.parse(row.layouts)
+                                    };
+                                }).filter(Boolean);
+                                people = importedPeople;
+                                nextPersonId = currentId;
+                                renderPersonList();
+                                alert(`Successfully imported ${people.length} people.`);
+                            } catch (err) {
+                                alert('Invalid CSV format or corrupted data.');
+                            }
+                        }
+                    });
+                };
+                reader.readAsText(file, 'Shift_JIS');
+                document.getElementById('importCsvInput').value = '';
+            };
+
+            // --- Printing ---
+            const printAll = () => {
+                if (people.length === 0) {
+                    alert('No data to print.');
+                    return;
+                }
+                printContainer.innerHTML = '';
+
+                const printWidthMM = 80;
+                const printHeightMM = printWidthMM * (300 / 500);
+
+                people.forEach(person => {
+                    const printWrapper = document.createElement('div');
+                    printWrapper.style.width = `${printWidthMM}mm`;
+                    printWrapper.style.height = `${printHeightMM}mm`;
+                    printWrapper.style.pageBreakInside = 'avoid';
+                    printWrapper.style.position = 'relative';
+                    printWrapper.style.overflow = 'hidden';
+
+                    const badgeClone = badgeWrapper.cloneNode(true);
+                    badgeClone.removeAttribute('id');
+                    badgeClone.style.width = '100%';
+                    badgeClone.style.height = '100%';
+                    badgeClone.style.border = '1px solid #ccc';
+                    badgeClone.style.boxSizing = 'border-box';
+
+                    const pEl = badgeClone.querySelector('#position');
+                    const nEl = badgeClone.querySelector('#name');
+                    const bEl = badgeClone.querySelector('#barcode');
+
+                    const applyStyles = (el, layout, text) => {
+                        Object.assign(el.style, layout);
+                        el.classList.remove('placeholder', 'selected');
+                        if (text) el.textContent = text; else el.style.display = 'none';
+                    };
+
+                    applyStyles(pEl, person.layouts.position, person.position);
+                    applyStyles(nEl, person.layouts.name, person.name);
+
+                    Object.assign(bEl.style, person.layouts.barcode);
+                    bEl.innerHTML = '';
+                    bEl.classList.remove('placeholder');
+                    if (person.employeeId && person.password) {
+                        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                        bEl.appendChild(svg);
+                        JsBarcode(svg, `${person.employeeId}	${person.password}\n`, { format: "CODE128", displayValue: false, margin: 0 });
+                    } else {
+                        bEl.style.display = 'none';
+                    }
+
+                    printWrapper.appendChild(badgeClone);
+                    printContainer.appendChild(printWrapper);
+                });
+
+                // Apply scaling after all elements are in the DOM
+                const badges = printContainer.querySelectorAll('.badge-wrapper');
+                const scaleFactor = (printWidthMM * (96 / 25.4)) / 500; // Calculate scale based on a 500px base width
+
+                badges.forEach(badge => {
+                    badge.querySelectorAll('.editable').forEach(el => {
+                        const currentSize = parseFloat(el.style.fontSize);
+                        el.style.fontSize = (currentSize * scaleFactor) + 'px';
+                    });
+                });
+
+                window.print();
+            };
+
+            // --- EVENT LISTENERS ---
+            document.getElementById('addPersonBtn').addEventListener('click', () => {
+                const newId = nextPersonId++;
+                const newPerson = {
+                    id: newId,
+                    name: '', position: '', employeeId: '', password: '',
+                    layouts: {
+                        position: {
+                            top: '30.2219%',
+                            left: '5.06664%',
+                            width: '88%',
+                            height: '13%',
+                            fontSize: '20px',
+                            fontFamily: '"MS Gothic", sans-serif'
+                        },
+                        name: {
+                            top: '44.556%',
+                            left: '4.93332%',
+                            width: '442.656px',
+                            height: '97.9896px',
+                            fontSize: '60px',
+                            fontFamily: '"MS Gothic", sans-serif'
+                        },
+                        barcode: {
+                            top: '77.3327%',
+                            left: '4.79984%',
+                            width: '238.667px',
+                            height: '41.9479px',
+                            fontSize: '',
+                            fontFamily: ''
+                        }
+                    }
+                };
+                people.push(newPerson);
+                renderPersonList();
+            });
+
+            personListBody.addEventListener('click', (e) => {
+                const target = e.target.closest('.edit-btn, .delete-btn');
+                if (!target) return;
+                const id = parseInt(target.closest('tr[data-id]').dataset.id, 10);
+                if (target.matches('.edit-btn')) {
+                    loadPersonIntoEditView(id);
+                    switchView('edit');
+                } else if (target.matches('.delete-btn')) {
+                    people = people.filter(p => p.id !== id);
+                    renderPersonList();
+                }
+            });
+
+            personListBody.addEventListener('input', (e) => {
+                const target = e.target;
+                if (!target.matches('.editable-input')) return;
+                const id = parseInt(target.closest('tr[data-id]').dataset.id, 10);
+                const field = target.dataset.field;
+                const person = people.find(p => p.id === id);
+                if (person) person[field] = target.value;
+            });
+
+            document.getElementById('saveAndExitBtn').addEventListener('click', saveAndExit);
+            document.getElementById('cancelBtn').addEventListener('click', () => switchView('list'));
+            document.getElementById('exportCsvBtn').addEventListener('click', exportToCsv);
+            document.getElementById('importCsvInput').addEventListener('change', (e) => importFromCsv(e.target.files[0]));
+            document.getElementById('printAllBtn').addEventListener('click', printAll);
+
+            // Real-time updates in edit view
+            Object.values(editViewControls).forEach(control => {
+                if (control.id !== 'fontFamily' && control.id !== 'fontSize') {
+                    control.addEventListener('input', updateEditViewPreview);
+                }
+            });
+            editViewControls.fontFamily.addEventListener('change', (e) => {
+                if (selectedElement && selectedElement.id !== 'barcode') selectedElement.style.fontFamily = e.target.value;
+            });
+            editViewControls.fontSize.addEventListener('input', (e) => {
+                if (selectedElement && selectedElement.id !== 'barcode') selectedElement.style.fontSize = e.target.value + 'px';
+            });
+
+            Object.values(preview).forEach(el => {
+                el.addEventListener('click', (e) => { e.stopPropagation(); selectPreviewElement(el); });
+            });
+
+            // --- INTERACTJS for Edit View ---
+            interact('.editable').draggable({ listeners: { move: dragMoveListener } })
+                .resizable({ edges: { right: true, bottom: true }, listeners: { move: resizeListener } });
+
+            function dragMoveListener(event) {
+                const target = event.target;
+                const x = (parseFloat(target.style.left) || 0) + (event.dx / badgeWrapper.clientWidth * 100);
+                const y = (parseFloat(target.style.top) || 0) + (event.dy / badgeWrapper.clientHeight * 100);
+                target.style.left = `${x}%`;
+                target.style.top = `${y}%`;
+            }
+
+            function resizeListener(event) {
+                const target = event.target;
+                target.style.width = `${event.rect.width}px`;
+                target.style.height = `${event.rect.height}px`;
+                const x = (parseFloat(target.style.left) || 0) + (event.deltaRect.left / badgeWrapper.clientWidth * 100);
+                const y = (parseFloat(target.style.top) || 0) + (event.deltaRect.top / badgeWrapper.clientHeight * 100);
+                target.style.left = `${x}%`;
+                target.style.top = `${y}%`;
+            }
+
+            // --- INITIALIZATION ---
+            renderPersonList();
+            switchView('list');
+        });
+    </script>
+</body>
+
+</html>
