@@ -93,7 +93,8 @@
         #position {
             justify-content: flex-start;
             text-align: left;
-            padding-left: 10px; /* Add some padding */
+            padding-left: 10px;
+            /* Add some padding */
         }
 
         #name {
@@ -411,10 +412,19 @@
                 const pw = editViewControls.password.value;
                 preview.barcode.innerHTML = '';
                 if (empId && pw) {
-                    preview.barcode.classList.remove('placeholder');
+                    const data = `${empId}${String.fromCharCode(9)}${pw}${String.fromCharCode(10)}`;
+                    // 9 = TAB, 10 = LF（改行）
+
                     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                    preview.barcode.innerHTML = '';
                     preview.barcode.appendChild(svg);
-                    JsBarcode(svg, `${empId}\t${pw}\n`, { format: "CODE128", displayValue: false, margin: 0 });
+
+                    JsBarcode(svg, data, {
+                        format: "CODE128",
+                        displayValue: false,
+                        margin: 0
+                    });
+
                 } else {
                     preview.barcode.classList.add('placeholder');
                     preview.barcode.textContent = 'Barcode';
@@ -481,7 +491,7 @@
                     currentSize--;
                     nameEl.style.fontSize = currentSize + 'px';
                 }
-                
+
                 if (wasHidden) nameEl.style.display = 'none';
             };
 
@@ -579,7 +589,7 @@
                     badgeClone.style.height = '100%';
                     badgeClone.style.border = '1px solid #ccc';
                     badgeClone.style.boxSizing = 'border-box';
-                    
+
                     const bgImgClone = badgeClone.querySelector('.badge-img');
                     const pEl = badgeClone.querySelector('#position');
                     const nEl = badgeClone.querySelector('#name');
@@ -610,7 +620,7 @@
 
                     applyLayout(nEl, layouts.name);
                     nEl.textContent = person.name || '';
-                    
+
                     applyLayout(bEl, layouts.barcode);
                     bEl.innerHTML = ''; // Clear any existing barcode
                     if (person.employeeId && person.password) {
@@ -622,7 +632,7 @@
                     }
 
                     [pEl, nEl, bEl].forEach(el => el.classList.remove('placeholder', 'selected'));
-                    
+
                     printWrapper.appendChild(badgeClone);
                     fragment.appendChild(printWrapper);
                 }
