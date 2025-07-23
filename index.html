@@ -357,26 +357,26 @@
 
                 const defaultLayouts = {
                     position: {
-                        top: '30.2219%',
-                        left: '5.06664%',
+                        top: '30.22%',
+                        left: '5.06%',
                         width: '88%',
                         height: '13%',
                         fontSize: '20px',
                         fontFamily: '"MS Gothic", sans-serif'
                     },
                     name: {
-                        top: '44.556%',
-                        left: '4.93332%',
-                        width: '442.656px',
-                        height: '97.9896px',
+                        top: '44.55%',
+                        left: '4.93%',
+                        width: '88.5%',
+                        height: '19.5%',
                         fontSize: '60px',
                         fontFamily: '"MS Gothic", sans-serif'
                     },
                     barcode: {
-                        top: '77.3327%',
-                        left: '4.79984%',
-                        width: '238.667px',
-                        height: '41.9479px',
+                        top: '77.33%',
+                        left: '4.8%',
+                        width: '47.7%',
+                        height: '8.4%',
                         fontSize: '',
                         fontFamily: ''
                     }
@@ -548,17 +548,24 @@
             };
 
             // --- Printing ---
-            const printAll = () => {
+            const printAll = async () => {
                 if (people.length === 0) {
                     alert('No data to print.');
                     return;
                 }
                 printContainer.innerHTML = '';
 
-                const printWidthMM = 80;
-                const printHeightMM = printWidthMM * (300 / 500);
+                const printWidthMM = 91;
+                const printHeightMM = 64;
+                const baseBadgeWidthPx = 500; // The base width of the badge design in pixels for font scaling
+                const dpi = 96;
+                const printWidthPx = printWidthMM / 25.4 * dpi;
+                const fontScaleFactor = printWidthPx / baseBadgeWidthPx;
 
-                people.forEach(person => {
+                const imageLoadPromises = [];
+                const fragment = document.createDocumentFragment();
+
+                for (const person of people) {
                     const printWrapper = document.createElement('div');
                     printWrapper.style.width = `${printWidthMM}mm`;
                     printWrapper.style.height = `${printHeightMM}mm`;
@@ -572,23 +579,40 @@
                     badgeClone.style.height = '100%';
                     badgeClone.style.border = '1px solid #ccc';
                     badgeClone.style.boxSizing = 'border-box';
-
+                    
+                    const bgImgClone = badgeClone.querySelector('.badge-img');
                     const pEl = badgeClone.querySelector('#position');
                     const nEl = badgeClone.querySelector('#name');
                     const bEl = badgeClone.querySelector('#barcode');
 
-                    const applyStyles = (el, layout, text) => {
+                    const imgSrc = person.backgroundSrc || 'test.png';
+                    const imgPromise = new Promise((resolve, reject) => {
+                        const img = new Image();
+                        img.onload = resolve;
+                        img.onerror = () => reject(new Error(`Failed to load ${imgSrc}`));
+                        img.src = imgSrc;
+                        bgImgClone.src = imgSrc;
+                        if (img.complete) resolve();
+                    });
+                    imageLoadPromises.push(imgPromise);
+
+                    const layouts = person.layouts || defaultLayouts;
+
+                    const applyLayout = (el, layout) => {
                         Object.assign(el.style, layout);
-                        el.classList.remove('placeholder', 'selected');
-                        if (text) el.textContent = text; else el.style.display = 'none';
+                        if (layout.fontSize) {
+                            el.style.fontSize = (parseFloat(layout.fontSize) * fontScaleFactor) + 'px';
+                        }
                     };
 
-                    applyStyles(pEl, person.layouts.position, person.position);
-                    applyStyles(nEl, person.layouts.name, person.name);
+                    applyLayout(pEl, layouts.position);
+                    pEl.textContent = person.position || '';
 
-                    Object.assign(bEl.style, person.layouts.barcode);
-                    bEl.innerHTML = '';
-                    bEl.classList.remove('placeholder');
+                    applyLayout(nEl, layouts.name);
+                    nEl.textContent = person.name || '';
+                    
+                    applyLayout(bEl, layouts.barcode);
+                    bEl.innerHTML = ''; // Clear any existing barcode
                     if (person.employeeId && person.password) {
                         const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
                         bEl.appendChild(svg);
@@ -597,22 +621,31 @@
                         bEl.style.display = 'none';
                     }
 
+                    [pEl, nEl, bEl].forEach(el => el.classList.remove('placeholder', 'selected'));
+                    
                     printWrapper.appendChild(badgeClone);
-                    printContainer.appendChild(printWrapper);
+                    fragment.appendChild(printWrapper);
+                }
+
+                printContainer.appendChild(fragment);
+
+                // Adjust name font size for printing
+                const nameElements = printContainer.querySelectorAll('#name');
+                nameElements.forEach(nameEl => {
+                    let currentSize = parseFloat(nameEl.style.fontSize);
+                    while (nameEl.scrollWidth > nameEl.clientWidth && currentSize > 1) {
+                        currentSize--;
+                        nameEl.style.fontSize = currentSize + 'px';
+                    }
                 });
 
-                // Apply scaling after all elements are in the DOM
-                const badges = printContainer.querySelectorAll('.badge-wrapper');
-                const scaleFactor = (printWidthMM * (96 / 25.4)) / 500; // Calculate scale based on a 500px base width
-
-                badges.forEach(badge => {
-                    badge.querySelectorAll('.editable').forEach(el => {
-                        const currentSize = parseFloat(el.style.fontSize);
-                        el.style.fontSize = (currentSize * scaleFactor) + 'px';
-                    });
-                });
-
-                window.print();
+                try {
+                    await Promise.all(imageLoadPromises);
+                    window.print();
+                } catch (error) {
+                    console.error('Error loading images for printing:', error);
+                    alert('Could not load all images for printing. Please check the console for errors.');
+                }
             };
 
             // --- EVENT LISTENERS ---
@@ -623,26 +656,26 @@
                     name: '', position: '', employeeId: '', password: '',
                     layouts: {
                         position: {
-                            top: '30.2219%',
-                            left: '5.06664%',
+                            top: '30.22%',
+                            left: '5.06%',
                             width: '88%',
                             height: '13%',
                             fontSize: '20px',
                             fontFamily: '"MS Gothic", sans-serif'
                         },
                         name: {
-                            top: '44.556%',
-                            left: '4.93332%',
-                            width: '442.656px',
-                            height: '97.9896px',
+                            top: '44.55%',
+                            left: '4.93%',
+                            width: '88.5%',
+                            height: '32.5%',
                             fontSize: '60px',
                             fontFamily: '"MS Gothic", sans-serif'
                         },
                         barcode: {
-                            top: '77.3327%',
-                            left: '4.79984%',
-                            width: '238.667px',
-                            height: '41.9479px',
+                            top: '77.33%',
+                            left: '4.8%',
+                            width: '47.7%',
+                            height: '15.4%',
                             fontSize: '',
                             fontFamily: ''
                         }
@@ -711,10 +744,15 @@
 
             function resizeListener(event) {
                 const target = event.target;
-                target.style.width = `${event.rect.width}px`;
-                target.style.height = `${event.rect.height}px`;
-                const x = (parseFloat(target.style.left) || 0) + (event.deltaRect.left / badgeWrapper.clientWidth * 100);
-                const y = (parseFloat(target.style.top) || 0) + (event.deltaRect.top / badgeWrapper.clientHeight * 100);
+                const badgeRect = badgeWrapper.getBoundingClientRect();
+
+                // Set width and height in percentage
+                target.style.width = `${event.rect.width / badgeRect.width * 100}%`;
+                target.style.height = `${event.rect.height / badgeRect.height * 100}%`;
+
+                // Update position based on delta (also in percentage)
+                const x = (parseFloat(target.style.left) || 0) + (event.deltaRect.left / badgeRect.width * 100);
+                const y = (parseFloat(target.style.top) || 0) + (event.deltaRect.top / badgeRect.height * 100);
                 target.style.left = `${x}%`;
                 target.style.top = `${y}%`;
             }
