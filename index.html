@@ -143,7 +143,7 @@
         @media print {
             @page {
                 size: A4 landscape;
-                margin: 0;
+                margin: 10mm;
             }
 
             html,
@@ -204,6 +204,7 @@
                 <label class="btn btn-info mb-0"><i class="bi bi-upload me-1"></i> Import CSV
                     <input type="file" id="importCsvInput" class="d-none" accept=".csv">
                 </label>
+                <button class="btn btn-warning" id="clearDataBtn"><i class="bi bi-trash me-1"></i> Reset</button>
             </div>
             <div class="table-responsive">
                 <table class="table table-hover align-middle">
@@ -297,6 +298,49 @@
             let nextPersonId = 1;
             let selectedElement = null;
 
+            // --- STORAGE FUNCTIONS ---
+            const STORAGE_KEY = 'badge_creator_data';
+            
+            const saveToStorage = () => {
+                try {
+                    const dataToSave = {
+                        people: people,
+                        nextPersonId: nextPersonId
+                    };
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
+                } catch (error) {
+                    console.error('Failed to save data to localStorage:', error);
+                }
+            };
+
+            const loadFromStorage = () => {
+                try {
+                    const savedData = localStorage.getItem(STORAGE_KEY);
+                    if (savedData) {
+                        const data = JSON.parse(savedData);
+                        people = data.people || [];
+                        nextPersonId = data.nextPersonId || 1;
+                        return true;
+                    }
+                } catch (error) {
+                    console.error('Failed to load data from localStorage:', error);
+                }
+                return false;
+            };
+
+            const clearStorage = () => {
+                try {
+                    localStorage.removeItem(STORAGE_KEY);
+                    people = [];
+                    nextPersonId = 1;
+                    renderPersonList();
+                    alert('data cleared');
+                } catch (error) {
+                    console.error('Failed to clear localStorage:', error);
+                    alert('failed to clear data');
+                }
+            };
+
             // --- DOM ELEMENTS ---
             const listView = document.getElementById('listView');
             const editView = document.getElementById('editView');
@@ -343,6 +387,8 @@
             `;
                     personListBody.appendChild(tr);
                 });
+                // データを自動保存
+                saveToStorage();
             };
 
             const loadPersonIntoEditView = (id) => {
@@ -461,6 +507,8 @@
 
                 renderPersonList();
                 switchView('list');
+                // データを自動保存
+                saveToStorage();
             };
 
             const selectPreviewElement = (el) => {
@@ -642,7 +690,11 @@
                 // Adjust name font size for printing
                 const nameElements = printContainer.querySelectorAll('#name');
                 nameElements.forEach(nameEl => {
-                    let currentSize = parseFloat(nameEl.style.fontSize);
+                    // 元のフォントサイズを取得（レイアウトから）
+                    const originalSize = parseFloat(nameEl.style.fontSize);
+                    let currentSize = originalSize;
+                    
+                    // テキストが要素の幅を超えるまでフォントサイズを小さくする
                     while (nameEl.scrollWidth > nameEl.clientWidth && currentSize > 1) {
                         currentSize--;
                         nameEl.style.fontSize = currentSize + 'px';
@@ -693,6 +745,8 @@
                 };
                 people.push(newPerson);
                 renderPersonList();
+                // 新しい項目を追加した後も自動保存
+                saveToStorage();
             });
 
             personListBody.addEventListener('click', (e) => {
@@ -714,7 +768,11 @@
                 const id = parseInt(target.closest('tr[data-id]').dataset.id, 10);
                 const field = target.dataset.field;
                 const person = people.find(p => p.id === id);
-                if (person) person[field] = target.value;
+                if (person) {
+                    person[field] = target.value;
+                    // リアルタイムでデータを保存
+                    saveToStorage();
+                }
             });
 
             document.getElementById('saveAndExitBtn').addEventListener('click', saveAndExit);
@@ -722,6 +780,7 @@
             document.getElementById('exportCsvBtn').addEventListener('click', exportToCsv);
             document.getElementById('importCsvInput').addEventListener('change', (e) => importFromCsv(e.target.files[0]));
             document.getElementById('printAllBtn').addEventListener('click', printAll);
+            document.getElementById('clearDataBtn').addEventListener('click', clearStorage);
 
             // Real-time updates in edit view
             Object.values(editViewControls).forEach(control => {
@@ -768,6 +827,11 @@
             }
 
             // --- INITIALIZATION ---
+            // 保存されたデータを読み込む
+            const dataLoaded = loadFromStorage();
+            if (dataLoaded && people.length > 0) {
+                // console.log(`${people.length}件のデータを読み込みました。`);
+            }
             renderPersonList();
             switchView('list');
         });
