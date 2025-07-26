@@ -333,8 +333,9 @@
                     localStorage.removeItem(STORAGE_KEY);
                     people = [];
                     nextPersonId = 1;
+                    if(window.confirm('clear data?')){
                     renderPersonList();
-                    alert('data cleared');
+                    }
                 } catch (error) {
                     console.error('Failed to clear localStorage:', error);
                     alert('failed to clear data');
@@ -432,6 +433,13 @@
 
                 const layouts = person?.layouts || defaultLayouts;
 
+                // まずテキストを設定
+                preview.position.textContent = person?.position || 'Position';
+                preview.name.textContent = person?.name || 'Name';
+                preview.position.classList.toggle('placeholder', !person?.position);
+                preview.name.classList.toggle('placeholder', !person?.name);
+
+                // その後レイアウトを適用
                 Object.keys(preview).forEach(key => {
                     Object.assign(preview[key].style, layouts[key]);
                 });
@@ -440,7 +448,37 @@
                 editViewControls.fontFamily.value = firstTextElementLayout.fontFamily;
                 editViewControls.fontSize.value = parseFloat(firstTextElementLayout.fontSize);
 
-                updateEditViewPreview();
+                // フォントサイズ調整を実行（一覧画面での調整結果を反映）
+                adjustNameFontSize();
+                
+                // 調整後のフォントサイズをコントロールに反映
+                const adjustedFontSize = parseFloat(preview.name.style.fontSize);
+                if (!isNaN(adjustedFontSize)) {
+                    editViewControls.fontSize.value = adjustedFontSize;
+                }
+
+                // バーコードの処理
+                const empId = person?.employeeId || '';
+                const pw = person?.password || '';
+                preview.barcode.innerHTML = '';
+                if (empId && pw) {
+                    const data = `${empId}${String.fromCharCode(9)}${pw}${String.fromCharCode(10)}`;
+                    // 9 = TAB, 10 = LF（改行）
+
+                    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                    preview.barcode.appendChild(svg);
+
+                    JsBarcode(svg, data, {
+                        format: "CODE128",
+                        displayValue: false,
+                        margin: 0
+                    });
+
+                } else {
+                    preview.barcode.classList.add('placeholder');
+                    preview.barcode.textContent = 'Barcode';
+                }
+
                 selectPreviewElement(preview.position);
             };
 
@@ -527,7 +565,18 @@
 
             const adjustNameFontSize = () => {
                 const nameEl = preview.name;
-                const maxFontSize = 60; // Or from layout
+                // レイアウト情報から最大フォントサイズを取得
+                const currentEditingPerson = people.find(p => p.id === currentEditingId);
+                let maxFontSize = 60; // デフォルト値
+                
+                if (currentEditingPerson && currentEditingPerson.layouts && currentEditingPerson.layouts.name) {
+                    // 一覧画面で調整されたフォントサイズがある場合はそれを使用
+                    const savedFontSize = parseFloat(currentEditingPerson.layouts.name.fontSize);
+                    if (!isNaN(savedFontSize)) {
+                        maxFontSize = savedFontSize;
+                    }
+                }
+                
                 nameEl.style.fontSize = maxFontSize + 'px';
 
                 // Temporarily make it visible to measure
@@ -772,6 +821,63 @@
                     person[field] = target.value;
                     // リアルタイムでデータを保存
                     saveToStorage();
+                    
+                    // nameフィールドが変更された場合、フォントサイズ調整を実行
+                    if (field === 'name') {
+                        // デフォルトレイアウトを定義
+                        const defaultLayouts = {
+                            position: {
+                                top: '30.22%',
+                                left: '5.06%',
+                                width: '88%',
+                                height: '13%',
+                                fontSize: '20px',
+                                fontFamily: '"MS Gothic", sans-serif'
+                            },
+                            name: {
+                                top: '44.55%',
+                                left: '4.93%',
+                                width: '88.5%',
+                                height: '19.5%',
+                                fontSize: '60px',
+                                fontFamily: '"MS Gothic", sans-serif'
+                            },
+                            barcode: {
+                                top: '77.33%',
+                                left: '4.8%',
+                                width: '47.7%',
+                                height: '8.4%',
+                                fontSize: '',
+                                fontFamily: ''
+                            }
+                        };
+                        
+                        // レイアウト情報が存在しない場合はデフォルトを使用
+                        if (!person.layouts) {
+                            person.layouts = JSON.parse(JSON.stringify(defaultLayouts));
+                        }
+                        
+                        // 印刷時のフォントサイズ調整ロジックと同じ方法で計算
+                        const nameText = person.name || 'Name';
+                        // 常に元の最大フォントサイズ（60px）を基準にする
+                        const originalMaxFontSize = 60;
+                        let adjustedFontSize = originalMaxFontSize;
+                        
+                        // テキストの長さに基づいてフォントサイズを調整
+                        // 文字数が多いほどフォントサイズを小さくする
+                        const textLength = nameText.length;
+                        if (textLength > 10) {
+                            adjustedFontSize = Math.max(10, originalMaxFontSize - (textLength - 10) * 2);
+                        } else if (textLength > 5) {
+                            adjustedFontSize = Math.max(15, originalMaxFontSize - (textLength - 5));
+                        }
+                        
+                        // 調整されたフォントサイズを保存
+                        person.layouts.name.fontSize = adjustedFontSize + 'px';
+                        
+                        // 更新されたデータを保存
+                        saveToStorage();
+                    }
                 }
             });
 
